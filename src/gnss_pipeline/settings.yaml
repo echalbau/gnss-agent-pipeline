@@ -1,0 +1,105 @@
+# Default configuration. Override with GNSS_PIPELINE_CONFIG=<yaml> (deep-merged).
+paths:
+  work_root: data/jobs          # one sub-directory per job
+  product_cache: data/products  # shared IGS product cache across jobs
+
+rinex_qc:
+  min_epochs: 120
+  min_duration_hours: 1.0
+  max_gap_ratio: 0.10           # missing / expected epochs
+  supported_major_versions: [2, 3, 4]
+
+products:
+  solutions: [FIN, RAP]         # tried in order (FIN ~2-3 weeks latency, RAP ~1 day)
+  timeout_s: 60
+  # IGS long product names (GPS week >= 2238)
+  catalog:
+    FIN:
+      orbit: "IGS0OPSFIN_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz"
+      clock: "IGS0OPSFIN_{year}{doy:03d}0000_01D_30S_CLK.CLK.gz"
+    RAP:
+      orbit: "IGS0OPSRAP_{year}{doy:03d}0000_01D_15M_ORB.SP3.gz"
+      clock: "IGS0OPSRAP_{year}{doy:03d}0000_01D_05M_CLK.CLK.gz"
+  brdc: "BRDC00IGS_R_{year}{doy:03d}0000_01D_MN.rnx.gz"
+  atx_urls:
+    - https://files.igs.org/pub/station/general/igs20.atx
+  # Verify paths against each server before production use.
+  mirrors:
+    - name: ign
+      products_url: "ftp://igs.ign.fr/pub/igs/products/{week}/"
+      daily_url: "ftp://igs.ign.fr/pub/igs/data/{year}/{doy:03d}/"
+    - name: esa
+      products_url: "ftp://gssc.esa.int/gnss/products/{week}/"
+      daily_url: "ftp://gssc.esa.int/gnss/data/daily/{year}/{doy:03d}/"
+    - name: cddis   # needs Earthdata login in ~/.netrc
+      products_url: "https://cddis.nasa.gov/archive/gnss/products/{week}/"
+      daily_url: "https://cddis.nasa.gov/archive/gnss/data/daily/{year}/{doy:03d}/{yy:02d}p/"
+
+engine:
+  rnx2rtkp: rnx2rtkp
+  timeout_s: 1800
+  default_mode: ppp-static
+  # RTKLIB option names/values as in rnx2rtkp .conf files. Quote on/off (YAML booleans).
+  options:
+    common:
+      pos1-frequency: l1+l2
+      pos1-soltype: forward
+      pos1-elmask: 10
+      pos1-navsys: 1
+      pos1-tidecorr: "on"
+      ant1-anttype: "*"
+      out-solformat: xyz
+      out-timesys: gpst
+      out-outhead: "on"
+    ppp-static:
+      pos1-posmode: ppp-static
+      pos1-ionoopt: dual-freq
+      pos1-tropopt: est-ztd
+      pos1-sateph: precise
+      pos1-posopt1: "on"
+      pos1-posopt2: "on"
+      pos1-posopt3: "on"
+      pos1-posopt4: "on"
+      pos2-armode: continuous   # PPP-AR only effective on demo5 builds
+    ppp-kine:
+      pos1-posmode: ppp-kine
+      pos1-ionoopt: dual-freq
+      pos1-tropopt: est-ztd
+      pos1-sateph: precise
+      pos1-posopt1: "on"
+      pos1-posopt2: "on"
+      pos1-posopt3: "on"
+      pos1-posopt4: "on"
+      pos2-armode: continuous
+    static:          # RTK static, needs base RINEX
+      pos1-posmode: static
+      pos1-ionoopt: brdc
+      pos1-tropopt: saas
+      pos1-sateph: brdc
+      pos2-armode: fix-and-hold
+      pos2-arthres: 3.0
+      ant2-postype: rinexhead
+      ant2-anttype: "*"
+    kinematic:       # RTK kinematic, needs base RINEX
+      pos1-posmode: kinematic
+      pos1-ionoopt: brdc
+      pos1-tropopt: saas
+      pos1-sateph: brdc
+      pos2-armode: fix-and-hold
+      pos2-arthres: 3.0
+      ant2-postype: rinexhead
+      ant2-anttype: "*"
+
+evaluation:
+  max_attempts: 4
+  ppp:
+    max_sigma_h_m: 0.02
+    max_sigma_v_m: 0.04
+  rtk:
+    min_fix_ratio: 0.95
+
+llm:
+  enabled: true                 # also requires ANTHROPIC_API_KEY
+  model: claude-sonnet-5-5
+  max_tokens: 1500
+  agent_max_turns: 12
